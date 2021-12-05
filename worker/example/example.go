@@ -13,7 +13,7 @@ func init() {
 }
 
 func run(args ...string) {
-	fmt.Printf("* Running: %v\n", args)
+	fmt.Printf("> Running: %v\n", args)
 	job, err := worker.Launch(args)
 	if err != nil {
 		panic(err)
@@ -23,10 +23,10 @@ func run(args ...string) {
 	if err != nil {
 		panic(err)
 	}
-	fmt.Printf("* Exit code: %d\n", *job.ExitCode)
-	fmt.Println("* Stdout:")
+	fmt.Printf("> Exit code: %d\n", *job.ExitCode)
+	fmt.Println("> Stdout:")
 	fmt.Print(string(stdout))
-	fmt.Println("* Stderr:")
+	fmt.Println("> Stderr:")
 	fmt.Print(string(stderr))
 }
 
@@ -38,6 +38,7 @@ func main() {
 	run("whoami")
 	run("hostname")
 	run("ls", "-l", "/sys/fs/cgroup")
+	run("cat", "/sys/fs/cgroup/cgroup.procs")
 	run("ip", "link")
 	run("ps", "-ef")
 }
