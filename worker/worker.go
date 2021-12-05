@@ -24,6 +24,8 @@ func Init() {
 	if os.Args[0] == specialArg0 {
 		childInit()
 		panic("This should never be reached.")
+	} else {
+		parentInit()
 	}
 }
 
@@ -67,8 +69,9 @@ func Launch(args []string) (*Job, error) {
 		Stdout: stdout,
 		Stderr: stderr,
 		SysProcAttr: &syscall.SysProcAttr{
-			Setpgid:    true,
-			Cloneflags: unix.CLONE_NEWNS | unix.CLONE_NEWPID | unix.CLONE_NEWUSER | unix.CLONE_NEWCGROUP | unix.CLONE_NEWUTS | unix.CLONE_NEWNET,
+			Setpgid: true,
+			// CLONE_NEWCGROUP will be unshared from the child init.
+			Cloneflags: unix.CLONE_NEWNS | unix.CLONE_NEWPID | unix.CLONE_NEWUSER | unix.CLONE_NEWUTS | unix.CLONE_NEWNET,
 			UidMappings: []syscall.SysProcIDMap{
 				{HostID: os.Getuid(), ContainerID: 0, Size: 1},
 			},

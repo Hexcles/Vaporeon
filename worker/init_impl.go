@@ -4,15 +4,63 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"syscall"
+
+	"github.com/google/uuid"
+	"golang.org/x/sys/unix"
+
+	"github.com/Hexcles/Vaporeon/worker/cgroup"
 )
 
 const specialArg0 = "<init>"
 const hostname = "vaporeon"
+const cgroupName = "_vaporeon"
+
+func fatal(err error) {
+	log.Fatalf("Init error: %s", err)
+}
+
+func parentInit() {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	if err := setUpParentCgroup(); err != nil {
+		log.Printf("Init: skipping cgroup setup: %s", err)
+	}
+}
+
+// setUpParentCgroup produces a non-fatal error if cgroup setup fails.
+//
+// If successful, we get the following hierarchy:
+//   - original
+//     subtree_control: on
+//     - cgroupName
+//       procs: [PID]
+func setUpParentCgroup() error {
+	c, err := cgroup.New()
+	if err != nil {
+		return err
+	}
+	if err := c.Check(); err != nil {
+		return err
+	}
+	if _, err := c.MoveToNewSubtree(cgroupName); err != nil {
+		return err
+	}
+	c.EnableSubtreeControl()
+	return nil
+}
 
 func childInit() {
 	runtime.LockOSThread()
+	setUpChildCgroup()
+	// Even if cgroup setup is skipped, we still want to create a new
+	// namespace for isolation.
+	if err := syscall.Unshare(unix.CLONE_NEWCGROUP); err != nil {
+		fatal(err)
+	}
 	if err := remountFs(); err != nil {
 		fatal(err)
 	}
@@ -39,8 +87,37 @@ func childInit() {
 	os.Exit(cmd.ProcessState.ExitCode())
 }
 
-func fatal(err error) {
-	log.Fatalf("Init error: %s", err)
+// setUpChildCgroup checks if the parent has set up cgroup, and continues the
+// child-side setup where errors will be fatal.
+//
+// If successful, we get the following hierarchy:
+//   - original
+//     subtree_control: on
+//     - [UUID]
+//       limits: on
+//       - worker:
+//         procs: [PID]
+//     - cgroupName
+//       procs: [PPID]
+//
+// The caller should then unshare its CGROUP namespace to prevent itself or its
+// children from modifying limits.
+func setUpChildCgroup() {
+	c, err := cgroup.New()
+	if err != nil || filepath.Base(c.Path) != cgroupName {
+		// Cgroup setup was skipped in parent.
+		return
+	}
+	newPath := filepath.Join("../", uuid.NewString())
+	c, err = c.MoveToNewSubtree(newPath)
+	if err != nil {
+		fatal(err)
+	}
+	_, err = c.MoveToNewSubtree(filepath.Join("worker"))
+	if err != nil {
+		fatal(err)
+	}
+	c.EnableLimits()
 }
 
 func prepareChildArgs(args []string) ([]string, error) {
