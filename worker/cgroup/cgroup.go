@@ -14,11 +14,13 @@
 package cgroup
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"log"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 )
@@ -65,7 +67,7 @@ func (c *Cgroup) Check() error {
 	if err != nil {
 		return fmt.Errorf("cgroup: failed to read cgroup.procs: %s", err)
 	}
-	if strings.Count(string(procs), "\n") != 1 {
+	if bytes.Count(procs, []byte("\n")) != 1 {
 		return errors.New("cgroup: cannot control the cgroup hierarchy; found other processes")
 	}
 	content, err := os.ReadFile(filepath.Join(c.Path, "cgroup.controllers"))
@@ -73,8 +75,8 @@ func (c *Cgroup) Check() error {
 		return fmt.Errorf("cgroup: failed to read cgroup.controllers: %s", err)
 	}
 	cMap := make(map[string]bool)
-	for _, c := range strings.Split(strings.TrimSpace(string(content)), " ") {
-		cMap[c] = true
+	for _, c := range bytes.Fields(content) {
+		cMap[string(c)] = true
 	}
 	for _, c := range wantControllers {
 		if !cMap[c] {
@@ -94,7 +96,7 @@ func (c *Cgroup) MoveToNewSubtree(subtree string) (*Cgroup, error) {
 	}
 	if err := os.WriteFile(
 		filepath.Join(newPath, "cgroup.procs"),
-		[]byte(fmt.Sprintf("%d", os.Getpid())),
+		[]byte(strconv.Itoa(os.Getpid())),
 		0600); err != nil {
 		return nil, fmt.Errorf("cgroup: failed to move into %s: %s", subtree, err)
 	}
@@ -130,7 +132,7 @@ func (c *Cgroup) EnableLimits() {
 	// Memory
 	_ = os.WriteFile(
 		filepath.Join(c.Path, "memory.max"),
-		[]byte(fmt.Sprintf("%d", maxMemory)),
+		[]byte(strconv.Itoa(maxMemory)),
 		0600)
 	// CPU
 	_ = os.WriteFile(

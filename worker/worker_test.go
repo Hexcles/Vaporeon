@@ -1,7 +1,7 @@
 package worker
 
 import (
-	"io/ioutil"
+	"io"
 	"os"
 	"testing"
 )
@@ -20,6 +20,9 @@ func TestLaunch(t *testing.T) {
 		{name: "hostname", args: []string{"hostname"}, wantOut: hostname + "\n"},
 	}
 	for _, c := range cases {
+		// Run the cases in parallel to prove goroutine-safety. Since
+		// they run in goroutines, capture the loop variable here.
+		c := c
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
 			job, err := Launch(c.args)
@@ -27,10 +30,10 @@ func TestLaunch(t *testing.T) {
 				t.Fatalf("Launch() returned non-nil error: %v", err)
 			}
 
-			if got, err := ioutil.ReadAll(job.Stdout()); string(got) != c.wantOut || err != nil {
+			if got, err := io.ReadAll(job.Stdout()); string(got) != c.wantOut || err != nil {
 				t.Errorf("ReadAll(Stdout()) = %q, %v; want %q, nil", string(got), err, c.wantOut)
 			}
-			if got, err := ioutil.ReadAll(job.Stderr()); string(got) != c.wantErr || err != nil {
+			if got, err := io.ReadAll(job.Stderr()); string(got) != c.wantErr || err != nil {
 				t.Errorf("ReadAll(Stderr()) = %q, %v; want %q, nil", string(got), err, c.wantErr)
 			}
 		})
@@ -66,7 +69,10 @@ func TestKill(t *testing.T) {
 		t.Errorf("Kill() returned non-nil error: %v", err)
 	}
 	// This should not block.
-	ioutil.ReadAll(job.Stdout())
+	_, err = io.ReadAll(job.Stdout())
+	if err != nil {
+		t.Fatalf("ReadAll(Stdout()) returned non-nil error: %v", err)
+	}
 }
 
 func TestMain(m *testing.M) {

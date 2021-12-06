@@ -1,10 +1,10 @@
 package cgroup
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"testing"
 )
 
@@ -84,12 +84,16 @@ func TestCgroupCheck_success(t *testing.T) {
 func TestMoveToNewSubtree(t *testing.T) {
 	fake := t.TempDir()
 	cgroup := &Cgroup{fake, true}
-	cgroup.MoveToNewSubtree("new")
-	read, err := os.ReadFile(filepath.Join(fake, "new", "cgroup.procs"))
+	newC, err := cgroup.MoveToNewSubtree("new")
+	wantNewPath := filepath.Join(fake, "new")
+	if newC.Path != wantNewPath || err != nil {
+		t.Fatalf("MoveToNewSubtree = %q, %v; want %q, nil", newC.Path, err, wantNewPath)
+	}
+	read, err := os.ReadFile(filepath.Join(wantNewPath, "cgroup.procs"))
 	if err != nil {
 		t.Fatalf("No new cgroup.procs: %s", err)
 	}
-	want := fmt.Sprintf("%d", os.Getpid())
+	want := strconv.Itoa(os.Getpid())
 	if string(read) != want {
 		t.Errorf("cgroup.procs = %s; want %s", string(read), want)
 	}
