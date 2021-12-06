@@ -23,6 +23,7 @@ func fatal(err error) {
 }
 
 func parentInit() {
+	// This is for extra safety in case of thread-mode cgroup.
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 
@@ -54,6 +55,7 @@ func setUpParentCgroup() error {
 }
 
 func childInit() {
+	// We are going to call unshare which works on the thread level.
 	runtime.LockOSThread()
 	setUpChildCgroup()
 	// Even if cgroup setup is skipped, we still want to create a new
