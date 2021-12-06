@@ -1,0 +1,42 @@
+syntax = "proto3";
+
+package jobworker;
+
+option go_package = "github.com/Hexcles/Vaporeon/protos";
+
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
+service JobWorker {
+  rpc Launch(Job) returns (JobId) {}
+  // For simplicity, SIGKILL is always used. It blocks until the job exits.
+  rpc Kill(JobId) returns (Job) {}
+  rpc Query(JobId) returns (Job) {}
+  // Stream closes when the job stops and all output has been sent.
+  rpc StreamOutput(JobId) returns (stream Output) {}
+  // Admin-only: kill all jobs and shutdown the server.
+  rpc Shutdown(google.protobuf.Empty) returns (google.protobuf.Empty) {}
+}
+
+message JobId {
+  string uuid = 1;
+}
+
+message Job {
+  JobId id = 1;	 // output-only
+  string owner = 2;  // output-only
+  // Required: at least args[0] should be provided. The server will find the
+  // binary to launch using the usual PATH lookup.
+  repeated string args = 3;
+  google.protobuf.Timestamp started = 4;  // output-only
+  google.protobuf.Timestamp stopped = 5;  // output-only; running jobs do not have this field.
+  int32 exit_code = 6;  // output-only; running jobs do not have this field.
+}
+
+message Output {
+  // Return raw bytes directly. Production code should inform the client of the
+  // locale to decode the bytes correctly.
+  // Each message may contain one or both fields, but never none.
+  bytes stdout = 1;
+  bytes stderr = 2;
+}
