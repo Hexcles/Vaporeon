@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"io/ioutil"
+	"io"
 	"os"
 
 	"github.com/Hexcles/Vaporeon/worker"
@@ -18,8 +18,11 @@ func run(args ...string) {
 	if err != nil {
 		panic(err)
 	}
-	stdout, err := ioutil.ReadAll(job.Stdout())
-	stderr, err := ioutil.ReadAll(job.Stderr())
+	stdout, err := io.ReadAll(job.Stdout())
+	if err != nil {
+		panic(err)
+	}
+	stderr, err := io.ReadAll(job.Stderr())
 	if err != nil {
 		panic(err)
 	}

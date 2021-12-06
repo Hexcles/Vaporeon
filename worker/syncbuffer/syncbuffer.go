@@ -11,20 +11,20 @@ import (
 // only one copy of the internal data. Synchronization details are hidden
 // behind Read, Write and Close, all of which may block.
 //
-// Do not copy this type.
+// Do not copy this type. Do not use the zero value; use New() instead.
 type Buffer struct {
 	buf []byte
 	eof bool
 
-	wlock *sync.RWMutex
+	wlock sync.RWMutex
 	rcond *sync.Cond
 }
 
 // New creates a new Buffer.
 func New() *Buffer {
-	wlock := new(sync.RWMutex)
-	rcond := sync.NewCond(wlock.RLocker())
-	return &Buffer{wlock: wlock, rcond: rcond}
+	buffer := new(Buffer)
+	buffer.rcond = sync.NewCond(buffer.wlock.RLocker())
+	return buffer
 }
 
 // Write implements io.Writer. Write will block until the Buffer is writable.

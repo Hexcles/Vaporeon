@@ -3,7 +3,6 @@ package syncbuffer
 import (
 	"bytes"
 	"io"
-	"io/ioutil"
 	"math/rand"
 	"strings"
 	"sync"
@@ -21,8 +20,8 @@ func TestBufferSimple(t *testing.T) {
 	if err := b.Close(); err != nil {
 		t.Errorf("Buffer.Close() returned non-nil error: %v", err)
 	}
-	if d, err := ioutil.ReadAll(r); string(d) != content || err != nil {
-		t.Errorf("io.ReadAll() = %q, %v; want %q, nil", string(d), content, err)
+	if d, err := io.ReadAll(r); string(d) != content || err != nil {
+		t.Errorf("ReadAll() = %q, %v; want %q, nil", string(d), content, err)
 	}
 	if n, err := r.Read(make([]byte, 1)); n != 0 || err != io.EOF {
 		t.Errorf("After EOF, Read() = %d, %v; want 0, EOF", n, err)
@@ -52,8 +51,8 @@ func TestBufferInterleavingReadAndWrite(t *testing.T) {
 	// A new reader should be able to read from the beginning.
 	r2 := b.NewReader()
 	want := strings.Join(content, "")
-	if got, err := ioutil.ReadAll(r2); string(got) != want || err != nil {
-		t.Errorf("io.ReadAll() = %q, %v; want %q, nil", string(want), content, err)
+	if got, err := io.ReadAll(r2); string(got) != want || err != nil {
+		t.Errorf("ReadAll() = %q, %v; want %q, nil", string(want), content, err)
 	}
 }
 
@@ -90,7 +89,7 @@ func TestBufferInParallel(t *testing.T) {
 			if err != nil {
 				t.Errorf("[Reader %d] ReadAll() returned non-nil error: %v", i, err)
 			}
-			if bytes.Compare(gotContent, wantContent) != 0 {
+			if !bytes.Equal(gotContent, wantContent) {
 				t.Errorf("[Reader %d] ReadAll() got unexpected content", i)
 			}
 		}(i, b.NewReader())
