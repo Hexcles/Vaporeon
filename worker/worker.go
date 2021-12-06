@@ -19,7 +19,18 @@ var (
 	ErrEmptyArgs = errors.New("worker: empty args")
 )
 
-// Init should be called as early as possible, e.g. during init().
+// Init does critical initialization for this library.
+//
+// It should be called as early as possible: init() is recommended since it
+// is guaranteed to run on the startup thread by Go runtime.
+//
+// Implementation details: in the parent (initial) process, Init() checks and
+// sets up cgroups (it does not set any limits on the parent process, but only
+// prepares the hierarchy). Later when Launch() starts a new child process, it
+// first re-launches itself in a new namespace with a special arg[0], which
+// will be detected by Init() in the child process where Init() finishes the
+// remaining setup (cgroups, mount points, etc.) and starts the actual job
+// process. Init() effectively serves as the PID 1 in the new namespace.
 func Init() {
 	if os.Args[0] == specialArg0 {
 		childInit()

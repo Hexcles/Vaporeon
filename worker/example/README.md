@@ -37,7 +37,7 @@ This time the command should fail quickly.
 If you have GNU time, you can try the following to find out what happened:
 
 ```bash
-sudo systemd-run -p "Delegate=yes" -p "User=$USER" -P --wait ./example /usr/bin/time tail /dev/zero
+sudo systemd-run -p "Delegate=yes" -p "User=$USER" -P --wait ./example /usr/bin/time -v tail /dev/zero
 ```
 
 `tail /dev/zero` tries to get to the end of an infinite stream and runs out of memory.
