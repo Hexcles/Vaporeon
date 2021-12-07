@@ -45,18 +45,26 @@ func Init() {
 //
 // All exported methods are goroutine-safe. Do not copy this type.
 type Job struct {
-	// Same as the parameter passed to Launch.
-	Args    []string
+	// Args record the parameter passed to Launch.
+	Args []string
+	// Started is guaranteed to be set by Launch.
 	Started time.Time
-	// Zero value when the job is still running.
-	Stopped time.Time
-	// Nil when the job is still running.
-	ExitCode *int
+
+	status JobStatus
+	slock  sync.RWMutex
 
 	cmd      *exec.Cmd
 	stdout   *syncbuffer.Buffer
 	stderr   *syncbuffer.Buffer
 	waitOnce sync.Once
+}
+
+// JobStatus represents the status of a job. It should be used as values.
+type JobStatus struct {
+	// Zero value means the job is still running.
+	Stopped time.Time
+	// If Stopped is zero, this field has no meaning.
+	ExitCode int
 }
 
 // Launch starts a new job and returns a corresponding *Job instance.
@@ -132,13 +140,25 @@ func (j *Job) Kill() error {
 	return nil
 }
 
+// Status returns a copy of the job's current status.
+//
+// The status is guaranteed to be available when stdout/stderr returns EOF.
+func (j *Job) Status() JobStatus {
+	j.slock.RLock()
+	defer j.slock.RUnlock()
+	return j.status
+}
+
 // wait is protected by sync.Once.Do, which drops any error or panic.
 func (j *Job) wait() {
 	// We will check the exit code later.
 	_ = j.cmd.Wait()
-	j.Stopped = time.Now()
-	c := j.cmd.ProcessState.ExitCode()
-	j.ExitCode = &c
+	// Set status before closing stdout/err because we guarantee that EOF
+	// means the process has stopped and status should be available.
+	j.slock.Lock()
+	j.status.Stopped = time.Now()
+	j.status.ExitCode = j.cmd.ProcessState.ExitCode()
+	j.slock.Unlock()
 	// Close is crucial; otherwise readers will block for EOF.
 	// syncbuffer.Buffer.Close() always succeeds.
 	_ = j.stdout.Close()
