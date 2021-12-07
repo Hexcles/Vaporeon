@@ -26,7 +26,7 @@ func run(args ...string) {
 	if err != nil {
 		panic(err)
 	}
-	fmt.Printf("> Exit code: %d\n", *job.ExitCode)
+	fmt.Printf("> Exit code: %d\n", job.Status().ExitCode)
 	fmt.Println("> Stdout:")
 	fmt.Print(string(stdout))
 	fmt.Println("> Stderr:")

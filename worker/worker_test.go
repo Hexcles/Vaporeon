@@ -29,12 +29,14 @@ func TestLaunch(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Launch() returned non-nil error: %v", err)
 			}
-
 			if got, err := io.ReadAll(job.Stdout()); string(got) != c.wantOut || err != nil {
 				t.Errorf("ReadAll(Stdout()) = %q, %v; want %q, nil", string(got), err, c.wantOut)
 			}
 			if got, err := io.ReadAll(job.Stderr()); string(got) != c.wantErr || err != nil {
 				t.Errorf("ReadAll(Stderr()) = %q, %v; want %q, nil", string(got), err, c.wantErr)
+			}
+			if s := job.Status(); s.Stopped.IsZero() || s.ExitCode != 0 {
+				t.Errorf("Status() = %+v; want {Stopped: non-zero, ExitCode: zero}", s)
 			}
 		})
 	}
@@ -65,13 +67,18 @@ func TestKill(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Launch() returned non-nil error: %v", err)
 	}
+	if s := job.Status(); !s.Stopped.IsZero() {
+		t.Error("Before Kill(), Status() returned non-zero Stopped")
+	}
 	if err := job.Kill(); err != nil {
 		t.Errorf("Kill() returned non-nil error: %v", err)
 	}
 	// This should not block.
-	_, err = io.ReadAll(job.Stdout())
-	if err != nil {
+	if _, err = io.ReadAll(job.Stdout()); err != nil {
 		t.Fatalf("ReadAll(Stdout()) returned non-nil error: %v", err)
+	}
+	if s := job.Status(); s.Stopped.IsZero() || s.ExitCode == 0 {
+		t.Errorf("After Kill(), Status() = %+v; want {Stopped: non-zero, ExitCode: non-zero}", s)
 	}
 }
 
