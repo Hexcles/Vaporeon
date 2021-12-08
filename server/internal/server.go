@@ -87,12 +87,15 @@ func (s *Server) Shutdown(context.Context, *emptypb.Empty) (*emptypb.Empty, erro
 	return &emptypb.Empty{}, nil
 }
 
-// KillAll kills all jobs. Make sure to stop accepting new jobs before calling
-// this method.
+// KillAll kills all jobs.
+//
+// Make sure to stop accepting new jobs before calling this method.
+// Errors are silently ignored.
 func (s *Server) KillAll() {
 	s.jobs.Range(func(key, value interface{}) bool {
 		job := value.(*Job)
-		job.Job.Kill()
+		// Some jobs may have ended.
+		_ = job.Job.Kill()
 		return true
 	})
 }
