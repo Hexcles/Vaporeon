@@ -11,12 +11,19 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	pb "github.com/Hexcles/Vaporeon/protos"
-	"github.com/Hexcles/Vaporeon/server/auth"
 	"github.com/Hexcles/Vaporeon/worker"
 )
 
+// Auther is a simple authorization interface.
+type Auther interface {
+	GetPeerID(context.Context) (string, error)
+	CanManage(context.Context, string) (bool, error)
+	CanShutdown(context.Context) (bool, error)
+}
+
 // Server implements JobWorkerServer.
 type Server struct {
+	auther   Auther
 	jobs     sync.Map
 	shutdown chan<- struct{}
 
@@ -24,14 +31,13 @@ type Server struct {
 }
 
 // New creates a new server.
-func New(shutdown chan<- struct{}) *Server {
-	return &Server{shutdown: shutdown}
+func New(auther Auther, shutdown chan<- struct{}) *Server {
+	return &Server{auther: auther, shutdown: shutdown}
 }
 
 // Launch launches a new job.
 func (s *Server) Launch(ctx context.Context, req *pb.Job) (*pb.JobId, error) {
-	id := uuid.NewString()
-	email, err := auth.GetPeerEmail(ctx)
+	email, err := s.auther.GetPeerID(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -40,9 +46,10 @@ func (s *Server) Launch(ctx context.Context, req *pb.Job) (*pb.JobId, error) {
 		log.Printf("Failed to launched job %v: %s", req.Args, err)
 		return nil, err
 	}
-	s.jobs.Store(id, &Job{Job: job, Owner: email})
-	log.Printf("Launched job %s for %s: %v", id, email, req.Args)
-	return &pb.JobId{Uuid: id}, nil
+	jid := &pb.JobId{Uuid: uuid.NewString()}
+	s.saveJob(jid, &Job{Job: job, Owner: email})
+	log.Printf("Launched job %s for %s: %v", jid, email, req.Args)
+	return jid, nil
 }
 
 // Kill sends SIGKILL to the job and blocks until the job exits.
@@ -87,14 +94,14 @@ func (s *Server) StreamOutput(req *pb.JobId, resp pb.JobWorker_StreamOutputServe
 
 // Shutdown signals to shut down the server and kill all jobs.
 func (s *Server) Shutdown(ctx context.Context, req *emptypb.Empty) (*emptypb.Empty, error) {
-	ok, err := auth.IsAdmin(ctx)
+	ok, err := s.auther.CanShutdown(ctx)
 	if err != nil {
 		return nil, err
 	}
 	if !ok {
 		return nil, status.Error(codes.PermissionDenied, "no permission")
 	}
-	s.shutdown <- struct{}{}
+	close(s.shutdown)
 	return &emptypb.Empty{}, nil
 }
 
@@ -111,13 +118,21 @@ func (s *Server) KillAll() {
 	})
 }
 
+func (s *Server) saveJob(id *pb.JobId, job *Job) {
+	// Uuid.NewString should always succeed.
+	if id.Uuid == "" {
+		panic("Got empty UUID")
+	}
+	s.jobs.Store(id.Uuid, job)
+}
+
 func (s *Server) loadJob(ctx context.Context, id *pb.JobId) (*Job, error) {
 	job, ok := s.jobs.Load(id.Uuid)
 	if !ok {
 		return nil, status.Error(codes.NotFound, "job not found or no permission")
 	}
 	j := job.(*Job)
-	ok, err := auth.CanManage(ctx, j.Owner)
+	ok, err := s.auther.CanManage(ctx, j.Owner)
 	if err != nil {
 		return nil, err
 	}
