@@ -276,5 +276,5 @@ var JobWorker_ServiceDesc = grpc.ServiceDesc{
 			ServerStreams: true,
 		},
 	},
-	Metadata: "jobworker.proto",
+	Metadata: "protos/jobworker.proto",
 }
