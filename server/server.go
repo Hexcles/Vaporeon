@@ -12,6 +12,7 @@ import (
 
 	"github.com/Hexcles/Vaporeon/certs"
 	pb "github.com/Hexcles/Vaporeon/protos"
+	"github.com/Hexcles/Vaporeon/server/auth"
 	"github.com/Hexcles/Vaporeon/server/internal"
 	"github.com/Hexcles/Vaporeon/worker"
 )
@@ -61,7 +62,7 @@ func main() {
 	}
 	grpcServer := grpc.NewServer(opts...)
 	shutdown := make(chan struct{})
-	server := internal.New(shutdown)
+	server := internal.New(auth.NewEmailAuth(), shutdown)
 	pb.RegisterJobWorkerServer(grpcServer, server)
 	go func() {
 		<-shutdown
