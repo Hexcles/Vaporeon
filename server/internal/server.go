@@ -23,9 +23,10 @@ type Auther interface {
 
 // Server implements JobWorkerServer.
 type Server struct {
-	auther   Auther
-	jobs     sync.Map
-	shutdown chan<- struct{}
+	auther    Auther
+	jobs      sync.Map
+	shutdown  chan<- struct{}
+	closeOnce sync.Once
 
 	pb.UnimplementedJobWorkerServer
 }
@@ -101,7 +102,7 @@ func (s *Server) Shutdown(ctx context.Context, req *emptypb.Empty) (*emptypb.Emp
 	if !ok {
 		return nil, status.Error(codes.PermissionDenied, "no permission")
 	}
-	close(s.shutdown)
+	s.closeOnce.Do(s.close)
 	return &emptypb.Empty{}, nil
 }
 
@@ -140,4 +141,10 @@ func (s *Server) loadJob(ctx context.Context, id *pb.JobId) (*Job, error) {
 		return nil, status.Error(codes.NotFound, "job not found or no permission")
 	}
 	return j, nil
+}
+
+// close closes the shutdown channel. This is behind a sync.Once to avoid
+// panics from closing the channel multiple times .
+func (s *Server) close() {
+	close(s.shutdown)
 }
