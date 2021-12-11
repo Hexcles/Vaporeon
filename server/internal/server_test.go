@@ -101,7 +101,7 @@ func TestKill(t *testing.T) {
 }
 
 func TestShutdown_success(t *testing.T) {
-	ch := make(chan struct{}, 1)
+	ch := make(chan struct{})
 	s := New(fakeAuther{canShutdown: true}, ch)
 	if _, err := s.Shutdown(context.Background(), nil); err != nil {
 		t.Fatalf("Shutdown() returned non-nil error: %v", err)
@@ -110,7 +110,7 @@ func TestShutdown_success(t *testing.T) {
 }
 
 func TestShutdown_permission_denied(t *testing.T) {
-	ch := make(chan struct{}, 1)
+	ch := make(chan struct{})
 	s := New(fakeAuther{canManage: true}, ch)
 	_, err := s.Shutdown(context.Background(), nil)
 	st, _ := status.FromError(err)
@@ -122,6 +122,18 @@ func TestShutdown_permission_denied(t *testing.T) {
 		t.Error("shutdown channel unexpectedly returned")
 	default:
 		// Do not block.
+	}
+}
+
+func TestShutdown_multiple(t *testing.T) {
+	// Calling Shutdown() multiple times should not panic.
+	ch := make(chan struct{})
+	s := New(fakeAuther{canShutdown: true}, ch)
+	if _, err := s.Shutdown(context.Background(), nil); err != nil {
+		t.Fatalf("Shutdown() returned non-nil error: %v", err)
+	}
+	if _, err := s.Shutdown(context.Background(), nil); err != nil {
+		t.Fatalf("Shutdown() returned non-nil error: %v", err)
 	}
 }
 
