@@ -1,6 +1,8 @@
 package internal
 
 import (
+	"io"
+	"syscall"
 	"testing"
 	"time"
 
@@ -37,7 +39,7 @@ func TestJobToPb_running(t *testing.T) {
 	}
 }
 
-func TestJobToPb_stopped(t *testing.T) {
+func TestJobToPb_killed(t *testing.T) {
 	id := &pb.JobId{Uuid: uuid.NewString()}
 	j, err := worker.Launch([]string{"sleep", "100000"})
 	if err != nil {
@@ -48,8 +50,31 @@ func TestJobToPb_stopped(t *testing.T) {
 		t.Fatalf("Kill() returned unexpected error: %v", err)
 	}
 	got := jobToPb(id, job)
-	if got.ExitCode == 0 {
-		t.Error("ExitCode is 0; want non-zero")
+	if got.ExitSignal != int32(syscall.SIGKILL) {
+		t.Errorf("ExitSignal is %d; want %d", got.ExitSignal, syscall.SIGKILL)
+	}
+	if got.ExitCode != 0 {
+		t.Errorf("ExitCode is %d; want 0", got.ExitCode)
+	}
+	if got.Stopped.AsTime().IsZero() {
+		t.Error("Stopped is zero; want non-zero")
+	}
+}
+
+func TestJobToPb_exited(t *testing.T) {
+	id := &pb.JobId{Uuid: uuid.NewString()}
+	j, err := worker.Launch([]string{"false"})
+	if err != nil {
+		t.Fatalf("Launch() returned unexpected error: %v", err)
+	}
+	job := &Job{Owner: "guest", Job: j}
+	_, _ = io.ReadAll(j.Stderr())
+	got := jobToPb(id, job)
+	if got.ExitSignal != 0 {
+		t.Errorf("ExitSignal is %d; want 0", got.ExitSignal)
+	}
+	if got.ExitCode != 1 {
+		t.Errorf("ExitCode is %d; want 1", got.ExitCode)
 	}
 	if got.Stopped.AsTime().IsZero() {
 		t.Error("Stopped is zero; want non-zero")
