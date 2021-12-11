@@ -30,7 +30,8 @@ message Job {
   repeated string args = 3;
   google.protobuf.Timestamp started = 4;  // output-only
   google.protobuf.Timestamp stopped = 5;  // output-only; running jobs do not have this field.
-  int32 exit_code = 6;  // output-only; running jobs do not have this field.
+  int32 exit_code = 6;  // output-only; only jobs exited on their own have this field.
+  int32 exit_signal = 7;  // output-only; only jobs killed by a signal have this field.
 }
 
 message Output {

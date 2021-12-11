@@ -3,6 +3,7 @@ package worker
 import (
 	"io"
 	"os"
+	"syscall"
 	"testing"
 )
 
@@ -35,14 +36,14 @@ func TestLaunch(t *testing.T) {
 			if got, err := io.ReadAll(job.Stderr()); string(got) != c.wantErr || err != nil {
 				t.Errorf("ReadAll(Stderr()) = %q, %v; want %q, nil", string(got), err, c.wantErr)
 			}
-			if s := job.Status(); s.Stopped.IsZero() || s.ExitCode != 0 {
-				t.Errorf("Status() = %+v; want {Stopped: non-zero, ExitCode: zero}", s)
+			if s := job.Status(); s.Stopped.IsZero() || s.ExitSignal != 0 || s.ExitCode != 0 {
+				t.Errorf("Status() = %+v; want {Stopped:non-zero, ExitSignal:0, ExitCode:0}", s)
 			}
 		})
 	}
 }
 
-func TestLaunch_Error(t *testing.T) {
+func TestLaunch_error(t *testing.T) {
 	type testCase struct {
 		name string
 		args []string
@@ -62,6 +63,17 @@ func TestLaunch_Error(t *testing.T) {
 	}
 }
 
+func TestLaunch_exit_with_nonzero(t *testing.T) {
+	job, err := Launch([]string{"false"})
+	if err != nil {
+		t.Errorf("Launch() returned non-nil error: %v", err)
+	}
+	_, _ = io.ReadAll(job.Stderr())
+	if s := job.Status(); s.Stopped.IsZero() || s.ExitSignal != 0 || s.ExitCode != 1 {
+		t.Errorf("Status() = %+v; want {Stopped:non-zero, ExitSignal:0, ExitCode:1}", s)
+	}
+}
+
 func TestKill(t *testing.T) {
 	job, err := Launch([]string{"sleep", "1000000"})
 	if err != nil {
@@ -77,8 +89,8 @@ func TestKill(t *testing.T) {
 	if _, err = io.ReadAll(job.Stdout()); err != nil {
 		t.Fatalf("ReadAll(Stdout()) returned non-nil error: %v", err)
 	}
-	if s := job.Status(); s.Stopped.IsZero() || s.ExitCode == 0 {
-		t.Errorf("After Kill(), Status() = %+v; want {Stopped: non-zero, ExitCode: non-zero}", s)
+	if s := job.Status(); s.Stopped.IsZero() || s.ExitSignal != syscall.SIGKILL || s.ExitCode != 0 {
+		t.Errorf("After Kill(), Status() = %+v; want {Stopped:non-zero, ExitSignal:SIGKILL, ExitCode:0}", s)
 	}
 }
 

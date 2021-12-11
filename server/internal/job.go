@@ -21,8 +21,12 @@ func jobToPb(id *pb.JobId, job *Job) *pb.Job {
 		Started: timestamppb.New(job.Job.Started),
 	}
 	if s := job.Job.Status(); !s.Stopped.IsZero() {
-		ret.ExitCode = int32(s.ExitCode)
 		ret.Stopped = timestamppb.New(s.Stopped)
+		if s.ExitSignal != 0 {
+			ret.ExitSignal = int32(s.ExitSignal)
+		} else {
+			ret.ExitCode = int32(s.ExitCode)
+		}
 	}
 	return ret
 }

@@ -63,7 +63,9 @@ type Job struct {
 type JobStatus struct {
 	// Zero value means the job is still running.
 	Stopped time.Time
-	// If Stopped is zero, this field has no meaning.
+	// If not zero, it is the signal that caused the job to exit.
+	ExitSignal syscall.Signal
+	// If Stopped is zero or Signal is not zero, this field has no meaning.
 	ExitCode int
 }
 
@@ -157,7 +159,11 @@ func (j *Job) wait() {
 	// means the process has stopped and status should be available.
 	j.slock.Lock()
 	j.status.Stopped = time.Now()
-	j.status.ExitCode = j.cmd.ProcessState.ExitCode()
+	if s := j.cmd.ProcessState.Sys().(syscall.WaitStatus); s.Signaled() {
+		j.status.ExitSignal = s.Signal()
+	} else if s.Exited() {
+		j.status.ExitCode = s.ExitStatus()
+	}
 	j.slock.Unlock()
 	// Close is crucial; otherwise readers will block for EOF.
 	// syncbuffer.Buffer.Close() always succeeds.
